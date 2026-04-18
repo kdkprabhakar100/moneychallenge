@@ -1,27 +1,27 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { View, ActivityIndicator } from "react-native";
 import LoginScreen from "./screens/LoginScreen";
+import RegisterScreen from "./screens/RegisterScreen";
 import DashboardScreen from "./screens/DashboardScreen";
-
-const Stack = createNativeStackNavigator();
 
 export default function App() {
   const [token, setToken] = useState(null);
+  const [screen, setScreen] = useState("login");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkToken();
+    checkLogin();
   }, []);
 
-  const checkToken = async () => {
+  const checkLogin = async () => {
     try {
       const savedToken = await AsyncStorage.getItem("token");
-      if (savedToken) setToken(savedToken);
+      if (savedToken) {
+        setToken(savedToken);
+      }
     } catch (error) {
-      console.log(error);
+      console.log("Check login error:", error);
     } finally {
       setLoading(false);
     }
@@ -30,26 +30,23 @@ export default function App() {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color="#2563eb" />
       </View>
     );
   }
 
+  if (token) {
+    return <DashboardScreen token={token} setToken={setToken} />;
+  }
+
+  if (screen === "register") {
+    return <RegisterScreen goToLogin={() => setScreen("login")} />;
+  }
+
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {token ? (
-          <Stack.Screen name="Dashboard">
-            {(props) => (
-              <DashboardScreen {...props} token={token} setToken={setToken} />
-            )}
-          </Stack.Screen>
-        ) : (
-          <Stack.Screen name="Login">
-            {(props) => <LoginScreen {...props} setToken={setToken} />}
-          </Stack.Screen>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <LoginScreen
+      setToken={setToken}
+      goToRegister={() => setScreen("register")}
+    />
   );
 }

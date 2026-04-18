@@ -2,331 +2,207 @@ import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   Alert,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DashboardScreen from "../screens/DashboardScreen";
 
-const API_URL = "http://192.168.18.189:5000";
-
-type UserType = {
-  id: number;
-  name: string;
-  email: string;
-};
-
-type DayItem = {
-  dayNumber: number;
-  amount: number;
-  completed: boolean;
-  month: number;
-};
+// FIX: Use localhost instead of hardcoded network IP
+const API_URL = "http://localhost:5000";
 
 export default function Index() {
   const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<UserType | null>(null);
-  const [email, setEmail] = useState("ash@example.com");
-  const [password, setPassword] = useState("123456");
-  const [target, setTarget] = useState("");
-  const [days, setDays] = useState("");
-  const [plan, setPlan] = useState<DayItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [creatingChallenge, setCreatingChallenge] = useState(false);
+  const [screen, setScreen] = useState<"login" | "register">("login");
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
+  // Login state
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Register state
+  const [name, setName] = useState("");
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerLoading, setRegisterLoading] = useState(false);
+
+  // Check for saved token on app start
   useEffect(() => {
-    checkSavedToken();
+    checkLogin();
   }, []);
 
-  const checkSavedToken = async () => {
+  const checkLogin = async () => {
     try {
       const savedToken = await AsyncStorage.getItem("token");
-      const savedPlan = await AsyncStorage.getItem("challengePlan");
-
       if (savedToken) {
         setToken(savedToken);
-        fetchMe(savedToken);
-      }
-
-      if (savedPlan) {
-        setPlan(JSON.parse(savedPlan));
       }
     } catch (error) {
-      console.log("Check token error:", error);
+      console.log("Check login error:", error);
+    } finally {
+      setCheckingAuth(false);
     }
   };
 
   const loginUser = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter email and password");
+      return;
+    }
+
     try {
       setLoading(true);
 
       const response = await fetch(`${API_URL}/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
       console.log("Login response:", data);
 
       if (!response.ok) {
-        Alert.alert("Error", data.message || "Login failed");
+        Alert.alert("Login Failed", data.message || "Invalid credentials");
         return;
       }
 
       await AsyncStorage.setItem("token", data.token);
       setToken(data.token);
-      fetchMe(data.token);
+      setEmail("");
+      setPassword("");
     } catch (error) {
       console.log("Login error:", error);
-      Alert.alert("Error", "Could not connect to server");
+      Alert.alert("Error", "Could not connect to server. Is the server running?");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchMe = async (authToken: string) => {
-    try {
-      const response = await fetch(`${API_URL}/me`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-
-      const data = await response.json();
-      console.log("Me response:", data);
-
-      if (!response.ok) {
-        Alert.alert("Error", data.message || "Failed to fetch user");
-        return;
-      }
-
-      setUser(data);
-    } catch (error) {
-      console.log("Fetch me error:", error);
-      Alert.alert("Error", "Could not fetch user data");
-    }
-  };
-
-  const createChallenge = async () => {
-    if (!target || !days) {
-      Alert.alert("Error", "Please enter target amount and number of days");
-      return;
-    }
-
-    if (Number(target) <= 0 || Number(days) <= 0) {
-      Alert.alert("Error", "Target amount and days must be greater than 0");
+  const registerUser = async () => {
+    if (!name || !registerEmail || !registerPassword) {
+      Alert.alert("Error", "Please fill all fields");
       return;
     }
 
     try {
-      setCreatingChallenge(true);
+      setRegisterLoading(true);
 
-      const response = await fetch(`${API_URL}/create-challenge`, {
+      const response = await fetch(`${API_URL}/register`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          targetAmount: Number(target),
-          days: Number(days),
+          name,
+          email: registerEmail,
+          password: registerPassword,
         }),
       });
 
       const data = await response.json();
-      console.log("Challenge response:", data);
+      console.log("Register response:", data);
 
       if (!response.ok) {
-        Alert.alert("Error", data.error || data.message || "Failed to create challenge");
+        Alert.alert("Registration Failed", data.message || "Could not register");
         return;
       }
 
-      const structuredPlan: DayItem[] = (data.plan || []).map(
-        (amount: number, index: number) => ({
-          dayNumber: index + 1,
-          amount,
-          completed: false,
-          month: Math.floor(index / 30) + 1,
-        })
-      );
-
-      setPlan(structuredPlan);
-      await AsyncStorage.setItem("challengePlan", JSON.stringify(structuredPlan));
-
-      setTarget("");
-      setDays("");
-      Alert.alert("Success", "Challenge created successfully");
+      Alert.alert("Success", "Account created! Please login.");
+      setName("");
+      setRegisterEmail("");
+      setRegisterPassword("");
+      setScreen("login");
     } catch (error) {
-      console.log("Create challenge error:", error);
-      Alert.alert("Error", "Could not create challenge");
+      console.log("Register error:", error);
+      Alert.alert("Error", "Could not connect to server. Is the server running?");
     } finally {
-      setCreatingChallenge(false);
+      setRegisterLoading(false);
     }
   };
 
-
-  const toggleDayCompleted = async (dayNumber: number) => {
-    const updatedPlan = plan.map((item) =>
-      item.dayNumber === dayNumber
-        ? { ...item, completed: !item.completed }
-        : item
-    );
-
-    setPlan(updatedPlan);
-    await AsyncStorage.setItem("challengePlan", JSON.stringify(updatedPlan));
-  };
-
-  const logoutUser = async () => {
-    try {
-      await AsyncStorage.removeItem("token");
-      setToken(null);
-      setUser(null);
-    } catch (error) {
-      console.log("Logout error:", error);
-    }
-  };
-
-    const clearChallenge = async () => {
-    try {
-        setPlan([]);
-        await AsyncStorage.removeItem("challengePlan");
-        Alert.alert("Success", "Challenge cleared");
-    } catch (error) {
-        console.log("Clear challenge error:", error);
-        Alert.alert("Error", "Could not clear challenge");
-    }
-    };
-
-  const groupedByMonth = plan.reduce((acc: Record<number, DayItem[]>, item) => {
-    if (!acc[item.month]) {
-      acc[item.month] = [];
-    }
-    acc[item.month].push(item);
-    return acc;
-  }, {});
-
-  if (token && user) {
+  // Show spinner while checking saved auth
+  if (checkingAuth) {
     return (
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>User Dashboard</Text>
-
-        <View style={styles.card}>
-          <Text style={styles.welcome}>Welcome, {user.name}</Text>
-          <Text style={styles.info}>Email: {user.email}</Text>
-          <Text style={styles.info}>User ID: {user.id}</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Create Challenge</Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Target Amount"
-            value={target}
-            onChangeText={setTarget}
-            keyboardType="numeric"
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Number of Days"
-            value={days}
-            onChangeText={setDays}
-            keyboardType="numeric"
-          />
-
-          <TouchableOpacity style={styles.button} onPress={createChallenge}>
-            <Text style={styles.buttonText}>
-              {creatingChallenge ? "Creating..." : "Create Challenge"}
-            </Text>
-          </TouchableOpacity>
-
-          {plan.length > 0 && (
-            <TouchableOpacity style={styles.clearButton} onPress={clearChallenge}>
-              <Text style={styles.buttonText}>Clear Challenge</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {Object.keys(groupedByMonth).length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Savings Plan by Month</Text>
-
-            {Object.entries(groupedByMonth).map(([month, monthDays]) => (
-              <View key={month} style={styles.monthBlock}>
-                <Text style={styles.monthTitle}>Month {month}</Text>
-
-                {monthDays.map((item) => (
-                  <TouchableOpacity
-                    key={item.dayNumber}
-                    style={[
-                      styles.dayRow,
-                      item.completed && styles.dayRowCompleted,
-                    ]}
-                    onPress={() => toggleDayCompleted(item.dayNumber)}
-                  >
-                    <View style={styles.leftRow}>
-                      <View
-                        style={[
-                          styles.checkbox,
-                          item.completed && styles.checkboxChecked,
-                        ]}
-                      >
-                        {item.completed && <Text style={styles.checkmark}>✓</Text>}
-                      </View>
-
-                      <Text
-                        style={[
-                          styles.dayText,
-                          item.completed && styles.completedText,
-                        ]}
-                      >
-                        Day {item.dayNumber}
-                      </Text>
-                    </View>
-
-                    <Text
-                      style={[
-                        styles.amountText,
-                        item.completed && styles.completedAmount,
-                      ]}
-                    >
-                      ${item.amount}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ))}
-          </View>
-        )}
-
-        <TouchableOpacity style={styles.logoutButton} onPress={logoutUser}>
-          <Text style={styles.buttonText}>Logout</Text>
-        </TouchableOpacity>
-      </ScrollView>
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
     );
   }
 
+  // If logged in, show the full dashboard
+  if (token) {
+    return <DashboardScreen token={token} setToken={setToken} />;
+  }
+
+  // Register Screen
+  if (screen === "register") {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Money Challenge App</Text>
+        <Text style={styles.subtitle}>Create Account</Text>
+
+        <TextInput
+          style={styles.input}
+          value={name}
+          onChangeText={setName}
+          placeholder="Full Name"
+          placeholderTextColor="#9ca3af"
+          autoCapitalize="words"
+        />
+
+        <TextInput
+          style={styles.input}
+          value={registerEmail}
+          onChangeText={setRegisterEmail}
+          placeholder="Email"
+          placeholderTextColor="#9ca3af"
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+
+        <TextInput
+          style={styles.input}
+          value={registerPassword}
+          onChangeText={setRegisterPassword}
+          placeholder="Password"
+          placeholderTextColor="#9ca3af"
+          secureTextEntry
+        />
+
+        <TouchableOpacity
+          style={[styles.button, registerLoading && styles.disabledButton]}
+          onPress={registerUser}
+          disabled={registerLoading}
+        >
+          <Text style={styles.buttonText}>
+            {registerLoading ? "Registering..." : "Register"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => setScreen("login")}>
+          <Text style={styles.linkText}>Already have an account? Login</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Login Screen
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Money Challenge App</Text>
-      <Text style={styles.subtitle}>Login</Text>
+      <Text style={styles.subtitle}>Welcome back 👋</Text>
 
       <TextInput
         style={styles.input}
         value={email}
         onChangeText={setEmail}
         placeholder="Email"
+        placeholderTextColor="#9ca3af"
         autoCapitalize="none"
+        keyboardType="email-address"
       />
 
       <TextInput
@@ -334,60 +210,52 @@ export default function Index() {
         value={password}
         onChangeText={setPassword}
         placeholder="Password"
+        placeholderTextColor="#9ca3af"
         secureTextEntry
       />
 
-      <TouchableOpacity style={styles.button} onPress={loginUser}>
+      <TouchableOpacity
+        style={[styles.button, loading && styles.disabledButton]}
+        onPress={loginUser}
+        disabled={loading}
+      >
         <Text style={styles.buttonText}>
           {loading ? "Logging in..." : "Login"}
         </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => setScreen("register")}>
+        <Text style={styles.linkText}>Don't have an account? Register</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f5f7fb",
+  },
   container: {
-    flexGrow: 1,
     flex: 1,
     backgroundColor: "#f5f7fb",
-    justifyContent: "center",
     padding: 24,
+    justifyContent: "center",
   },
   title: {
     fontSize: 28,
     fontWeight: "700",
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 8,
+    color: "#111827",
   },
   subtitle: {
     fontSize: 18,
     textAlign: "center",
-    marginBottom: 24,
-    color: "#666",
-  },
-  card: {
-    backgroundColor: "#fff",
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  welcome: {
-    fontSize: 22,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  info: {
-    fontSize: 16,
-    color: "#444",
-    marginBottom: 6,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 14,
+    color: "#6b7280",
+    marginBottom: 32,
   },
   input: {
     backgroundColor: "#fff",
@@ -396,92 +264,29 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 14,
     marginBottom: 14,
+    fontSize: 15,
+    color: "#111",
   },
   button: {
     backgroundColor: "#2563eb",
     padding: 14,
     borderRadius: 10,
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 4,
   },
-  clearButton: {
-    backgroundColor: "#6b7280",
-    padding: 14,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  logoutButton: {
-    backgroundColor: "#dc2626",
-    padding: 14,
-    borderRadius: 10,
-    alignItems: "center",
-    marginBottom: 20,
+  disabledButton: {
+    backgroundColor: "#93c5fd",
   },
   buttonText: {
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
   },
-  monthBlock: {
-    marginBottom: 22,
-  },
-  monthTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 10,
-    color: "#111827",
-  },
-  dayRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    borderRadius: 10,
-  },
-  dayRowCompleted: {
-    backgroundColor: "#dcfce7",
-  },
-  leftRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderWidth: 2,
-    borderColor: "#9ca3af",
-    borderRadius: 6,
-    marginRight: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#fff",
-  },
-  checkboxChecked: {
-    backgroundColor: "#16a34a",
-    borderColor: "#16a34a",
-  },
-  checkmark: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  dayText: {
-    fontSize: 16,
-    color: "#333",
-  },
-  amountText: {
-    fontSize: 16,
-    fontWeight: "700",
+  linkText: {
+    textAlign: "center",
+    marginTop: 18,
     color: "#2563eb",
-  },
-  completedText: {
-    color: "#166534",
-    fontWeight: "700",
-  },
-  completedAmount: {
-    color: "#166534",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });
