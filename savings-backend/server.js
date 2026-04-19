@@ -183,7 +183,7 @@ app.post("/create-challenge", authMiddleware, async (req, res) => {
 
     const challengeResult = await client.query(
       `INSERT INTO savings_challenges (user_id, target_amount, start_date, end_date, total_saved)
-       VALUES ($1, $2, CURRENT_DATE, CURRENT_DATE + ($3 - 1), 0)
+       VALUES ($1, $2, CURRENT_DATE, CURRENT_DATE + (($3::int) - 1), 0)
        RETURNING id`,
       [req.user.id, Number(targetAmount), Number(days)]
     );
@@ -193,7 +193,7 @@ app.post("/create-challenge", authMiddleware, async (req, res) => {
     for (let i = 0; i < plan.length; i++) {
       await client.query(
         `INSERT INTO challenge_days (challenge_id, day_date, amount, completed)
-         VALUES ($1, CURRENT_DATE + $2, $3, FALSE)`,
+         VALUES ($1, CURRENT_DATE + ($2::int), $3, FALSE)`,
         [challengeId, i, plan[i]]
       );
     }
