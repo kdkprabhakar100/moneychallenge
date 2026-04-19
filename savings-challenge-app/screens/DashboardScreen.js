@@ -14,6 +14,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const API_URL = "http://localhost:5000";
+const DAYS_PER_PAGE = 30;
 const { width } = Dimensions.get("window");
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
@@ -49,6 +50,7 @@ export default function DashboardScreen({ token, setToken }) {
   const [creatingChallenge, setCreatingChallenge] = useState(false);
   const [clearingPlan, setClearingPlan] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(0);
 
   const scrollRef = useRef(null);
 
@@ -58,6 +60,23 @@ export default function DashboardScreen({ token, setToken }) {
       fetchLatestChallenge();
     }
   }, [token]);
+
+  // Auto-jump to first page that has pending days
+  useEffect(() => {
+    if (planDays.length === 0) return;
+
+    const pages = Math.ceil(planDays.length / DAYS_PER_PAGE);
+    for (let p = 0; p < pages; p++) {
+      const pageDays = planDays.slice(p * DAYS_PER_PAGE, (p + 1) * DAYS_PER_PAGE);
+      const hasPending = pageDays.some((d) => !d.completed);
+      if (hasPending) {
+        setCurrentPage(p);
+        return;
+      }
+    }
+    // All done — stay on last page
+    setCurrentPage(pages - 1);
+  }, [planDays.length]);
 
   const fetchUser = async () => {
     try {
@@ -129,6 +148,7 @@ export default function DashboardScreen({ token, setToken }) {
       }
       setTarget("");
       setDays("");
+      setCurrentPage(0);
       await fetchLatestChallenge();
       setTimeout(() => {
         if (scrollRef.current) scrollRef.current.scrollTo({ y: 0, animated: false });
@@ -189,6 +209,7 @@ export default function DashboardScreen({ token, setToken }) {
       setFilter("all");
       setTarget("");
       setDays("");
+      setCurrentPage(0);
       Alert.alert("Cleared", "Plan cleared successfully");
     } catch (error) {
       Alert.alert("Error", "Could not clear plan");
@@ -219,14 +240,28 @@ export default function DashboardScreen({ token, setToken }) {
     }
   };
 
-  const filteredPlan = useMemo(() => {
-    if (filter === "completed") return planDays.filter((item) => item.completed);
-    if (filter === "pending") return planDays.filter((item) => !item.completed);
-    return planDays;
-  }, [planDays, filter]);
+  // ── Pagination logic ──────────────────────────────────────────────────────
+  const totalPages = Math.ceil(planDays.length / DAYS_PER_PAGE);
 
-  const completedCount = planDays.filter((item) => item.completed).length;
-  const pendingCount = planDays.filter((item) => !item.completed).length;
+  const allPageDays = useMemo(() => {
+    const start = currentPage * DAYS_PER_PAGE;
+    return planDays.slice(start, start + DAYS_PER_PAGE);
+  }, [planDays, currentPage]);
+
+  const filteredPlan = useMemo(() => {
+    if (filter === "completed") return allPageDays.filter((d) => d.completed);
+    if (filter === "pending") return allPageDays.filter((d) => !d.completed);
+    return allPageDays;
+  }, [allPageDays, filter]);
+
+  // Per-page stats
+  const pageCompletedCount = allPageDays.filter((d) => d.completed).length;
+  const pagePendingCount = allPageDays.filter((d) => !d.completed).length;
+  const isPageComplete = pagePendingCount === 0 && allPageDays.length > 0;
+
+  // Overall stats
+  const totalCompleted = planDays.filter((d) => d.completed).length;
+  const totalPending = planDays.filter((d) => !d.completed).length;
   const hasActivePlan = planDays.length > 0;
 
   const progressPercent = challengeInfo
@@ -239,6 +274,26 @@ export default function DashboardScreen({ token, setToken }) {
       )
     : 0;
 
+  const remainingAmount = challengeInfo
+    ? Math.max(
+        Number(challengeInfo.targetAmount || 0) - Number(challengeInfo.totalSaved || 0),
+        0
+      )
+    : 0;
+
+  // Page saved amount
+  const pageSavedAmount = allPageDays
+    .filter((d) => d.completed)
+    .reduce((sum, d) => sum + Number(d.amount), 0);
+
+  const pageTotalAmount = allPageDays.reduce((sum, d) => sum + Number(d.amount), 0);
+
+  const goToPage = (p) => {
+    setCurrentPage(p);
+    setFilter("all");
+    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 50);
+  };
+
   return (
     <ScrollView
       ref={scrollRef}
@@ -250,7 +305,7 @@ export default function DashboardScreen({ token, setToken }) {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.logoMark}>
-            <Text style={styles.logoMarkText}>₹</Text>
+            <Text style={styles.logoMarkText}>PK</Text>
           </View>
           <View>
             <Text style={styles.appName}>Money Challenge</Text>
@@ -359,30 +414,27 @@ export default function DashboardScreen({ token, setToken }) {
           <View style={styles.cardHeader}>
             <Text style={styles.cardIcon}>📊</Text>
             <View>
-              <Text style={styles.cardTitle}>Plan Summary</Text>
-              <Text style={styles.cardSub}>Track your progress</Text>
+              <Text style={styles.cardTitle}>Overall Summary</Text>
+              <Text style={styles.cardSub}>{planDays.length} days total</Text>
             </View>
           </View>
 
-          {/* Stats Grid */}
-          <View style={styles.statsGrid}>
-            <View style={[styles.statCell, { borderColor: C.blue }]}>
-              <Text style={[styles.statValue, { color: C.blue }]}>
-                ₹{Number(challengeInfo.targetAmount).toLocaleString()}
-              </Text>
-              <Text style={styles.statLabel}>Target</Text>
-            </View>
-            <View style={[styles.statCell, { borderColor: C.accent }]}>
-              <Text style={[styles.statValue, { color: C.accent }]}>
+          {/* Big saved hero */}
+          <View style={styles.savedHero}>
+            <View style={styles.savedHeroLeft}>
+              <Text style={styles.savedHeroLabel}>TOTAL SAVED</Text>
+              <Text style={styles.savedHeroValue}>
                 ₹{Number(challengeInfo.totalSaved || 0).toLocaleString()}
               </Text>
-              <Text style={styles.statLabel}>Saved</Text>
-            </View>
-            <View style={[styles.statCell, { borderColor: C.warning }]}>
-              <Text style={[styles.statValue, { color: C.warning }]}>
-                {planDays.length}
+              <Text style={styles.savedHeroSub}>
+                of ₹{Number(challengeInfo.targetAmount).toLocaleString()} target
               </Text>
-              <Text style={styles.statLabel}>Days</Text>
+            </View>
+            <View style={styles.savedHeroRight}>
+              <Text style={styles.remainingLabel}>REMAINING</Text>
+              <Text style={styles.remainingValue}>
+                ₹{remainingAmount.toLocaleString()}
+              </Text>
             </View>
           </View>
 
@@ -390,7 +442,7 @@ export default function DashboardScreen({ token, setToken }) {
           <View style={styles.progressWrap}>
             <View style={styles.progressMeta}>
               <Text style={styles.progressLabel}>
-                ✅ {completedCount} done · ⏳ {pendingCount} left
+                ✅ {totalCompleted} done · ⏳ {totalPending} left
               </Text>
               <Text style={styles.progressPercent}>{progressPercent}%</Text>
             </View>
@@ -407,7 +459,7 @@ export default function DashboardScreen({ token, setToken }) {
         </View>
       )}
 
-      {/* ── Daily Plan ── */}
+      {/* ── Daily Plan (Paginated) ── */}
       {loadingChallenge ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={C.accent} size="small" />
@@ -415,20 +467,86 @@ export default function DashboardScreen({ token, setToken }) {
         </View>
       ) : hasActivePlan ? (
         <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardIcon}>📅</Text>
+
+          {/* Page Header */}
+          <View style={styles.pageHeader}>
             <View>
-              <Text style={styles.cardTitle}>Daily Plan</Text>
-              <Text style={styles.cardSub}>Tap a day to mark it done</Text>
+              <Text style={styles.cardTitle}>
+                📅 Days {currentPage * DAYS_PER_PAGE + 1}–
+                {Math.min((currentPage + 1) * DAYS_PER_PAGE, planDays.length)}
+              </Text>
+              <Text style={styles.cardSub}>
+                Page {currentPage + 1} of {totalPages}
+                {isPageComplete ? "  ✅ All done!" : ""}
+              </Text>
+            </View>
+
+            {/* Page saved badge */}
+            <View style={styles.pageSavedBadge}>
+              <Text style={styles.pageSavedLabel}>PAGE SAVED</Text>
+              <Text style={styles.pageSavedValue}>
+                ₹{pageSavedAmount.toLocaleString()}
+              </Text>
+              <Text style={styles.pageSavedTotal}>
+                / ₹{pageTotalAmount.toLocaleString()}
+              </Text>
             </View>
           </View>
+
+          {/* Page Navigation Pills */}
+          {totalPages > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.pageNavScroll}
+              contentContainerStyle={styles.pageNavContent}
+            >
+              {Array.from({ length: totalPages }, (_, i) => {
+                const pageDays = planDays.slice(i * DAYS_PER_PAGE, (i + 1) * DAYS_PER_PAGE);
+                const allDone = pageDays.every((d) => d.completed);
+                const isActive = i === currentPage;
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    style={[
+                      styles.pageNavPill,
+                      isActive && styles.pageNavPillActive,
+                      allDone && !isActive && styles.pageNavPillDone,
+                    ]}
+                    onPress={() => goToPage(i)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.pageNavText,
+                        isActive && styles.pageNavTextActive,
+                        allDone && !isActive && styles.pageNavTextDone,
+                      ]}
+                    >
+                      {allDone ? "✓ " : ""}P{i + 1}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.pageNavSub,
+                        isActive && { color: C.bg },
+                        allDone && !isActive && { color: C.accent },
+                      ]}
+                    >
+                      {i * DAYS_PER_PAGE + 1}–
+                      {Math.min((i + 1) * DAYS_PER_PAGE, planDays.length)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
 
           {/* Filter Tabs */}
           <View style={styles.filterRow}>
             {[
-              { key: "all", label: `All (${planDays.length})` },
-              { key: "pending", label: `Pending (${pendingCount})` },
-              { key: "completed", label: `Done (${completedCount})` },
+              { key: "all", label: `All (${allPageDays.length})` },
+              { key: "pending", label: `Pending (${pagePendingCount})` },
+              { key: "completed", label: `Done (${pageCompletedCount})` },
             ].map((f) => (
               <TouchableOpacity
                 key={f.key}
@@ -436,7 +554,12 @@ export default function DashboardScreen({ token, setToken }) {
                 onPress={() => setFilter(f.key)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.filterTabText, filter === f.key && styles.filterTabTextActive]}>
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    filter === f.key && styles.filterTabTextActive,
+                  ]}
+                >
                   {f.label}
                 </Text>
               </TouchableOpacity>
@@ -447,12 +570,12 @@ export default function DashboardScreen({ token, setToken }) {
           {filteredPlan.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>
-                {filter === "completed" ? "🎉" : "📭"}
+                {filter === "completed" ? "🎉" : "✅"}
               </Text>
               <Text style={styles.emptyText}>
                 {filter === "completed"
-                  ? "No days completed yet. Keep going!"
-                  : "All days are done. Amazing!"}
+                  ? "No days completed on this page yet."
+                  : "All days on this page are done!"}
               </Text>
             </View>
           ) : (
@@ -493,6 +616,40 @@ export default function DashboardScreen({ token, setToken }) {
               </TouchableOpacity>
             ))
           )}
+
+          {/* Bottom Pagination Arrows */}
+          <View style={styles.pageArrows}>
+            <TouchableOpacity
+              style={[styles.arrowBtn, currentPage === 0 && styles.arrowBtnDisabled]}
+              onPress={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 0}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.arrowText, currentPage === 0 && styles.arrowTextDisabled]}>
+                ← Prev
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={styles.pageIndicator}>
+              {currentPage + 1} / {totalPages}
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.arrowBtn, currentPage === totalPages - 1 && styles.arrowBtnDisabled]}
+              onPress={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages - 1}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.arrowText,
+                  currentPage === totalPages - 1 && styles.arrowTextDisabled,
+                ]}
+              >
+                Next →
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : (
         <View style={styles.noplanCard}>
@@ -502,7 +659,6 @@ export default function DashboardScreen({ token, setToken }) {
         </View>
       )}
 
-      {/* Bottom spacer */}
       <View style={{ height: 20 }} />
     </ScrollView>
   );
@@ -740,32 +896,54 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  // ── Stats Grid ───────────────────────────
-  statsGrid: {
+  // ── Saved Hero ───────────────────────────
+  savedHero: {
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 20,
-  },
-  statCell: {
-    flex: 1,
     backgroundColor: C.surfaceAlt,
-    borderRadius: 14,
-    padding: 14,
-    alignItems: "center",
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 18,
     borderWidth: 1,
-    borderTopWidth: 3,
+    borderColor: C.borderLight,
+    gap: 12,
   },
-  statValue: {
-    fontSize: 15,
-    fontWeight: "800",
+  savedHeroLeft: {
+    flex: 1,
+  },
+  savedHeroLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: C.textMuted,
+    letterSpacing: 1,
     marginBottom: 4,
   },
-  statLabel: {
+  savedHeroValue: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: C.accent,
+    letterSpacing: -0.5,
+    marginBottom: 2,
+  },
+  savedHeroSub: {
+    fontSize: 12,
+    color: C.textSecondary,
+  },
+  savedHeroRight: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  remainingLabel: {
     fontSize: 10,
-    color: C.textMuted,
     fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
+    color: C.textMuted,
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  remainingValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: C.danger,
+    letterSpacing: -0.3,
   },
 
   // ── Progress ─────────────────────────────
@@ -798,6 +976,83 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: C.blue,
     borderRadius: 999,
+  },
+
+  // ── Page Header ──────────────────────────
+  pageHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  pageSavedBadge: {
+    backgroundColor: C.accentDim,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: "flex-end",
+    borderWidth: 1,
+    borderColor: C.accent + "44",
+  },
+  pageSavedLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: C.accent,
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  pageSavedValue: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: C.accent,
+  },
+  pageSavedTotal: {
+    fontSize: 10,
+    color: C.textSecondary,
+    marginTop: 1,
+  },
+
+  // ── Page Nav ─────────────────────────────
+  pageNavScroll: {
+    marginBottom: 16,
+  },
+  pageNavContent: {
+    gap: 8,
+    paddingRight: 4,
+  },
+  pageNavPill: {
+    backgroundColor: C.surfaceAlt,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+    alignItems: "center",
+    minWidth: 64,
+  },
+  pageNavPillActive: {
+    backgroundColor: C.accent,
+    borderColor: C.accent,
+  },
+  pageNavPillDone: {
+    backgroundColor: C.accentDim,
+    borderColor: C.accent + "66",
+  },
+  pageNavText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: C.textSecondary,
+  },
+  pageNavTextActive: {
+    color: C.bg,
+  },
+  pageNavTextDone: {
+    color: C.accent,
+  },
+  pageNavSub: {
+    fontSize: 9,
+    color: C.textMuted,
+    marginTop: 2,
   },
 
   // ── Filter Tabs ──────────────────────────
@@ -895,6 +1150,41 @@ const styles = StyleSheet.create({
   },
   amtTextDone: {
     color: C.accent,
+  },
+
+  // ── Page Arrows ──────────────────────────
+  pageArrows: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  arrowBtn: {
+    backgroundColor: C.surfaceAlt,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+  },
+  arrowBtnDisabled: {
+    opacity: 0.3,
+  },
+  arrowText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: C.accent,
+  },
+  arrowTextDisabled: {
+    color: C.textMuted,
+  },
+  pageIndicator: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: C.textSecondary,
   },
 
   // ── Empty / No Plan ──────────────────────
