@@ -13,8 +13,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 
-// FIX: use localhost
-const API_URL = "http://localhost:5000";
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
 
 export default function RegisterScreen({ goToLogin }) {
   const [name, setName] = useState("");

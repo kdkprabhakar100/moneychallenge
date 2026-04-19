@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL = "http://localhost:5000";
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const DAYS_PER_PAGE = 30;
 const { width } = Dimensions.get("window");
 

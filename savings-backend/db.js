@@ -1,20 +1,17 @@
-const oracledb = require("oracledb");
+const { Pool } = require("pg");
 require("dotenv").config();
 
-async function getConnection() {
-  try {
-    const connection = await oracledb.getConnection({
-      user: process.env.ORACLE_USER,
-      password: process.env.ORACLE_PASSWORD,
-      connectString: process.env.ORACLE_CONNECT_STRING,
-    });
+const isRenderDb =
+  process.env.DATABASE_URL &&
+  process.env.DATABASE_URL.includes("render.com");
 
-    console.log("Connected to Oracle Database");
-    return connection;
-  } catch (err) {
-    console.error("Oracle connection error:", err);
-    throw err;
-  }
-}
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: isRenderDb ? { rejectUnauthorized: false } : false,
+});
 
-module.exports = { getConnection };
+pool.on("error", (err) => {
+  console.error("Unexpected PostgreSQL pool error:", err);
+});
+
+module.exports = pool;

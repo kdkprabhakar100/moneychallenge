@@ -14,8 +14,9 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// FIX: use localhost
-const API_URL = "http://localhost:5000";
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
 
 export default function LoginScreen({ setToken, goToRegister }) {
   const [email, setEmail] = useState("");
