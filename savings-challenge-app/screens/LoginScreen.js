@@ -14,9 +14,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
-
 
 export default function LoginScreen({ setToken, goToRegister }) {
   const [email, setEmail] = useState("");
@@ -25,30 +23,26 @@ export default function LoginScreen({ setToken, goToRegister }) {
   const [focusedField, setFocusedField] = useState(null);
   const { width } = useWindowDimensions();
 
-  const isLargeScreen = width >= 900;
+  // Responsive card width — never wider than 480px, never full bleed on wide screens
+  const cardMaxWidth = Math.min(width - 32, 480);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       Alert.alert("Error", "Please enter email and password");
       return;
     }
-
     try {
       setLoading(true);
-
       const response = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password }),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         Alert.alert("Login Failed", data.message || "Something went wrong");
         return;
       }
-
       await AsyncStorage.setItem("token", data.token);
       setToken(data.token);
     } catch (error) {
@@ -65,14 +59,12 @@ export default function LoginScreen({ setToken, goToRegister }) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContainer,
-          isLargeScreen && styles.scrollContainerLarge,
-        ]}
+        contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.contentWrap, isLargeScreen && styles.contentWrapLarge]}>
+        {/* All content centered with max width */}
+        <View style={[styles.contentWrap, { maxWidth: cardMaxWidth }]}>
 
           {/* ── Brand Header ── */}
           <View style={styles.header}>
@@ -88,7 +80,7 @@ export default function LoginScreen({ setToken, goToRegister }) {
           </View>
 
           {/* ── Auth Card ── */}
-          <View style={[styles.authCard, isLargeScreen && styles.authCardLarge]}>
+          <View style={styles.authCard}>
             <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>Login to continue your journey</Text>
 
@@ -150,9 +142,7 @@ export default function LoginScreen({ setToken, goToRegister }) {
               onPress={goToRegister}
               activeOpacity={0.75}
             >
-              <Text style={styles.outlineButtonText}>
-                Create an account
-              </Text>
+              <Text style={styles.outlineButtonText}>Create an account</Text>
             </TouchableOpacity>
           </View>
 
@@ -172,18 +162,12 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 20,
-  },
-  scrollContainerLarge: {
-    paddingHorizontal: 32,
+    alignItems: "center",        // ← centers contentWrap horizontally
     paddingVertical: 40,
+    paddingHorizontal: 16,
   },
   contentWrap: {
-    width: "100%",
-    alignSelf: "center",
-  },
-  contentWrapLarge: {
-    maxWidth: 520,
+    width: "100%",               // fills up to maxWidth set inline
   },
 
   // ── Brand ─────────────────────────────────
@@ -197,25 +181,25 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   logoBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     backgroundColor: "#10e88a",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#10e88a",
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
-    shadowRadius: 20,
+    shadowRadius: 16,
     elevation: 10,
   },
   logoText: {
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: "900",
     color: "#03130d",
   },
   brandTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
     color: "#ffffff",
     letterSpacing: -0.3,
@@ -231,23 +215,19 @@ const styles = StyleSheet.create({
   // ── Card ──────────────────────────────────
   authCard: {
     backgroundColor: "#111827",
-    borderRadius: 28,
+    borderRadius: 24,
     padding: 24,
     borderWidth: 1,
     borderColor: "#1e293b",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
-    shadowRadius: 30,
+    shadowRadius: 24,
     elevation: 12,
     marginBottom: 20,
   },
-  authCardLarge: {
-    paddingHorizontal: 32,
-    paddingVertical: 30,
-  },
   title: {
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: "800",
     color: "#ffffff",
     textAlign: "center",
@@ -255,32 +235,32 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#64748b",
     textAlign: "center",
-    marginBottom: 28,
+    marginBottom: 24,
   },
 
   // ── Fields ────────────────────────────────
   fieldGroup: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
   label: {
     color: "#475569",
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1.2,
-    marginBottom: 8,
+    marginBottom: 7,
   },
   input: {
     backgroundColor: "#1f2937",
     borderWidth: 1.5,
     borderColor: "#334155",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     color: "#ffffff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "500",
   },
   inputFocused: {
@@ -292,14 +272,14 @@ const styles = StyleSheet.create({
   primaryButton: {
     marginTop: 8,
     backgroundColor: "#10e88a",
-    paddingVertical: 17,
-    borderRadius: 18,
+    paddingVertical: 16,
+    borderRadius: 16,
     alignItems: "center",
     shadowColor: "#10e88a",
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowRadius: 16,
+    elevation: 8,
   },
   disabledButton: {
     opacity: 0.65,
@@ -308,13 +288,13 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: "#03130d",
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "900",
     letterSpacing: 0.2,
   },
   outlineButton: {
-    paddingVertical: 16,
-    borderRadius: 18,
+    paddingVertical: 15,
+    borderRadius: 16,
     alignItems: "center",
     borderWidth: 1.5,
     borderColor: "#1e293b",
@@ -322,7 +302,7 @@ const styles = StyleSheet.create({
   },
   outlineButtonText: {
     color: "#64748b",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
   },
 
@@ -330,7 +310,7 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 20,
+    marginVertical: 18,
     gap: 12,
   },
   dividerLine: {
