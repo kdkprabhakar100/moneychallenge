@@ -247,6 +247,7 @@ export default function DashboardScreen({ token, setToken }) {
 
   const allPageDays = useMemo(() => {
     const start = currentPage * DAYS_PER_PAGE;
+    
     return planDays.slice(start, start + DAYS_PER_PAGE);
   }, [planDays, currentPage]);
 
