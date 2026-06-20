@@ -52,6 +52,7 @@ export default function LoginScreen({ setToken, goToRegister }) {
       setLoading(false);
     }
   };
+  
 
   return (
     <KeyboardAvoidingView
