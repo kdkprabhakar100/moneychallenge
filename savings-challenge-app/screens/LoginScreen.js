@@ -49,7 +49,9 @@ export default function LoginScreen({ setToken, goToRegister }) {
       console.log("Login error:", error);
       Alert.alert("Error", "Could not connect to server. Is it running?");
     } finally {
+
       setLoading(false);
+      
     }
   };
   
