@@ -46,6 +46,7 @@ export default function LoginScreen({ setToken, goToRegister }) {
       await AsyncStorage.setItem("token", data.token);
       setToken(data.token);
     } catch (error) {
+      
       console.log("Login error:", error);
       Alert.alert("Error", "Could not connect to server. Is it running?");
     } finally {
