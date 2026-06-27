@@ -10,6 +10,8 @@ export default function App() {
   const [screen, setScreen] = useState("login");
   const [loading, setLoading] = useState(true);
 
+  
+
   useEffect(() => {
     checkLogin();
   }, []);
