@@ -5,6 +5,8 @@ import LoginScreen from "./screens/LoginScreen";
 import RegisterScreen from "./screens/RegisterScreen";
 import DashboardScreen from "./screens/DashboardScreen";
 
+
+
 export default function App() {
   const [token, setToken] = useState(null);
   const [screen, setScreen] = useState("login");
